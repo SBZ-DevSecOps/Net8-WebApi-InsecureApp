@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36221.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Net8-WebApi-InsecureApp", "Net8-WebApi-InsecureApp.csproj", "{BF8D0ABD-DDF7-58D6-4D0A-3A9890A24E50}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BF8D0ABD-DDF7-58D6-4D0A-3A9890A24E50}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF8D0ABD-DDF7-58D6-4D0A-3A9890A24E50}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF8D0ABD-DDF7-58D6-4D0A-3A9890A24E50}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF8D0ABD-DDF7-58D6-4D0A-3A9890A24E50}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2E1D42BF-BC2A-42B6-ACF7-56F01A55759A}
+	EndGlobalSection
+EndGlobal
