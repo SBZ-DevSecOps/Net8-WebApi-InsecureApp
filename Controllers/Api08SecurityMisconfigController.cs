@@ -208,10 +208,10 @@ namespace Net8_WebApi_InsecureApp.Controllers
             Response.Headers.Remove("Referrer-Policy");
 
             // VULNÉRABLE: Ajoute des headers qui révèlent des informations
-            Response.Headers.Add("Server", "Net8-WebApi-InsecureApp/1.0");
-            Response.Headers.Add("X-Powered-By", "ASP.NET Core 8.0");
-            Response.Headers.Add("X-AspNet-Version", "8.0.0");
-            Response.Headers.Add("X-Debug-Token", Guid.NewGuid().ToString());
+            Response.Headers.Append("Server", "Net8-WebApi-InsecureApp/1.0");
+            Response.Headers.Append("X-Powered-By", "ASP.NET Core 8.0");
+            Response.Headers.Append("X-AspNet-Version", "8.0.0");
+            Response.Headers.Append("X-Debug-Token", Guid.NewGuid().ToString());
 
             return Ok(new
             {

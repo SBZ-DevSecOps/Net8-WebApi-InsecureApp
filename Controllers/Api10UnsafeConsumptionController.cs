@@ -2,13 +2,11 @@
 using Microsoft.EntityFrameworkCore;
 using Net8_WebApi_InsecureApp.Data;
 using Net8_WebApi_InsecureApp.Models;
-using System.Net;
 using System.Net.Http.Headers;
+using System.ServiceModel.Syndication;
 using System.Text;
 using System.Text.Json;
 using System.Xml;
-using System.ServiceModel.Syndication;
-using System.Dynamic;
 
 namespace Net8_WebApi_InsecureApp.Controllers
 {
@@ -24,6 +22,8 @@ namespace Net8_WebApi_InsecureApp.Controllers
         private readonly AppDbContext _context;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly ILogger<Api10UnsafeConsumptionController> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
         private static readonly HttpClient _unsafeClient = new HttpClient(new HttpClientHandler
         {
             // VULNÉRABLE: Désactive la validation SSL
@@ -35,12 +35,17 @@ namespace Net8_WebApi_InsecureApp.Controllers
         public Api10UnsafeConsumptionController(
             AppDbContext context,
             IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IWebHostEnvironment environment,
             ILogger<Api10UnsafeConsumptionController> logger)
         {
             _context = context;
             _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
+            _environment = environment;
             _logger = logger;
         }
+
 
         #region Weather API - Injection de contenu non validé
 
@@ -175,12 +180,89 @@ namespace Net8_WebApi_InsecureApp.Controllers
             using var client = new HttpClient(handler);
             var response = await client.PostAsync(url, content);
             var responseContent = await response.Content.ReadAsStringAsync();
+            //Problème: Lit toute la réponse en mémoire Risques:
+            //OutOfMemoryException avec grandes réponses
+            //DoS par épuisement mémoire
+
+
+            # region version corrigée
+            // Configuration sécurisée du HttpClient
+            var handler2 = new HttpClientHandler
+            {
+                // CORRECTION 1: Validation SSL activée (comportement par défaut)
+                // ServerCertificateCustomValidationCallback reste null
+            };
+
+            using var client2 = new HttpClient(handler)
+            {
+                // CORRECTION 3: Timeout approprié
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+
+            // CORRECTION 2: Validation de l'URL
+            if (!IsUrlAllowed(url))
+            {
+                throw new InvalidOperationException("URL non autorisée");
+            }
+
+            // CORRECTION 4: Limite de taille pour la réponse
+            client.MaxResponseContentBufferSize = 10 * 1024 * 1024; // 10 MB max
+
+            var response2 = await client.PostAsync(url, content);
+
+            // Vérifier la taille avant de lire
+            if (response.Content.Headers.ContentLength > 10 * 1024 * 1024)
+            {
+                throw new InvalidOperationException("Réponse trop grande");
+            }
+
+            var responseContent2 = await response.Content.ReadAsStringAsync();
+
+            /// Points clés de la correction :
+            // Validation SSL/ TLS active
+            // Liste blanche des URLs
+            // HTTPS uniquement
+            // Timeout configuré
+            // Limite de taille des réponses
+            // Blocage des IPs internes
+
+            #endregion
+
 
             // VULNÉRABLE: Parse et retourne directement la réponse
             var verificationResult = JsonSerializer.Deserialize<VerificationResponse>(responseContent);
             verificationResult!.RawProviderData = responseContent;
 
             return Ok(verificationResult);
+        }
+
+        // Méthode de validation d'URL
+        private bool IsUrlAllowed(string url)
+        {
+            // Liste blanche des domaines autorisés
+            var allowedHosts = new[] { "api.trusted.com", "storage.mycompany.com" };
+
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                return false;
+
+            // Seulement HTTPS
+            if (uri.Scheme != "https")
+                return false;
+
+            // Vérifier la liste blanche
+            if (!allowedHosts.Contains(uri.Host))
+                return false;
+
+            // Bloquer les IPs privées
+            if (IsPrivateIP(uri.Host))
+                return false;
+
+            return true;
+        }
+
+        private bool IsPrivateIP(string host)
+        {
+            throw new NotImplementedException();
         }
 
         #endregion
@@ -460,53 +542,66 @@ namespace Net8_WebApi_InsecureApp.Controllers
         #region File Upload - Transfert non sécurisé
 
         /// <summary>
-        /// VULNÉRABLE: Upload de fichiers vers des services externes
+        /// VULNÉRABLE: File Upload sans validation
         /// </summary>
         [HttpPost("file/upload")]
-        public async Task<IActionResult> UploadToExternal([FromBody] FileUploadRequest request)
+        public async Task<IActionResult> UploadFile([FromForm] IFormFile file,
+                string url = "https://external-storage.com/api/upload")
         {
-            // VULNÉRABLE: Upload vers n'importe quelle URL
-            var uploadUrl = request.UploadUrl ?? "http://file-storage.untrusted.com/upload";
+            // VULNÉRABLE: API externe non validée
+            var externalApiUrl = _configuration["FileStorage:ApiEndpoint"] ?? url;
 
-            var content = new MultipartFormDataContent();
-
+            // VULNÉRABLE: Pas de validation de la taille
+            // Pas de limite : file.Length peut être énorme
             // VULNÉRABLE: Pas de validation du type de fichier
-            var fileContent = new ByteArrayContent(request.Content);
-            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(request.ContentType);
-            content.Add(fileContent, "file", request.FileName);
-
-            // VULNÉRABLE: Ajoute des métadonnées sensibles
-            content.Add(new StringContent("internal-upload"), "source");
-            content.Add(new StringContent(User.Identity?.Name ?? "anonymous"), "uploader");
-
-            var response = await _unsafeClient.PostAsync(uploadUrl, content);
-            var responseContent = await response.Content.ReadAsStringAsync();
-
-            // VULNÉRABLE: Trust la réponse du service externe
-            if (response.IsSuccessStatusCode)
+            var uploadPath = Path.Combine(_environment.WebRootPath, "uploads");
+            // VULNÉRABLE: Utilisation directe du nom de fichier client
+            var fileName = file.FileName; // Peut contenir ../../../ 
+            var filePath = Path.Combine(uploadPath, fileName);
+            // VULNÉRABLE: Pas de vérification d'extension
+            // Accepte .exe, .dll, .aspx, .config, etc.
+            // VULNÉRABLE: Sauvegarde directe sans validation
+            using (var stream = new FileStream(filePath, FileMode.Create))
             {
-                try
-                {
-                    dynamic result = JsonSerializer.Deserialize<ExpandoObject>(responseContent)!;
-
-                    // VULNÉRABLE: Stocke l'URL externe non validée
-                    return Ok(new
-                    {
-                        fileUrl = result.url,
-                        fileId = result.id,
-                        message = "File uploaded successfully",
-                        rawResponse = responseContent
-                    });
-                }
-                catch
-                {
-                    return Ok(new { response = responseContent });
-                }
+                await file.CopyToAsync(stream);
             }
 
-            return BadRequest(new { error = responseContent });
+            // VULNÉRABLE: Envoi du fichier à une API externe non fiable
+            using var client = new HttpClient();
+            using var content = new MultipartFormDataContent();
+
+            // VULNÉRABLE: Relecture du fichier sans validation
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            var fileContent = new ByteArrayContent(fileBytes);
+
+            // VULNÉRABLE: Trust du Content-Type original
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse(file.ContentType);
+            content.Add(fileContent, "file", fileName);
+
+            // VULNÉRABLE: Envoi à l'API externe sans vérification
+            var response = await client.PostAsync(externalApiUrl, content);
+            var externalResponse = await response.Content.ReadAsStringAsync();
+
+            // VULNÉRABLE: Le fichier est accessible publiquement
+            var publicUrl = $"/uploads/{fileName}";
+
+            return Ok(new
+            {
+                url = publicUrl,
+                fileName = fileName,
+                // VULNÉRABLE: Expose le chemin réel
+                path = filePath,
+                // VULNÉRABLE: Expose la réponse de l'API externe
+                externalApiResponse = externalResponse
+            });
         }
 
         #endregion
+    }
+
+    public class ExternalApiResponse
+    {
+        public string? FileUrl { get; set; }
+        public string? FileId { get; set; }
     }
 }

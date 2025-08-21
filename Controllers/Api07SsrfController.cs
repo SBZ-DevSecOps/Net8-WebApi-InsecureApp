@@ -319,7 +319,7 @@ namespace Net8_WebApi_InsecureApp.Controllers
                     ipAddresses = ipAddresses,
                     isReachable = isReachable,
                     port = uri.Port,
-                    // VULNÉRABLE: Informations détaillées sur la résolution DNS
+                    // VULNÉRABLE: renvoi des
                     aliases = hostEntry.Aliases,
                     hostName = hostEntry.HostName
                 });
