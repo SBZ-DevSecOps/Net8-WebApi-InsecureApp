@@ -29,6 +29,7 @@ namespace Net8_WebApi_InsecureApp.Controllers
         private static readonly Dictionary<string, int> _loginAttempts = new();
         private static readonly Dictionary<string, string> _passwordResetTokens = new();
         private static readonly Dictionary<string, string> _sessionTokens = new();
+        private static readonly Dictionary<string, string> _newTokens = new();
 
         public Api02AuthController(AppDbContext context, IConfiguration configuration, ILogger<Api02AuthController> logger)
         {
@@ -288,6 +289,7 @@ namespace Net8_WebApi_InsecureApp.Controllers
         {
             // VULNÉRABLE: Pas de vérification d'authentification
             // VULNÉRABLE: userId passé dans la requête
+            // VULNÉRABLE: autre vuln
 
             var user = await _context.Set<AuthUser>().FindAsync(request.UserId);
             if (user == null) return NotFound();
