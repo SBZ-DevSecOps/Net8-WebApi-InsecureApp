@@ -283,8 +283,8 @@ namespace Net8_WebApi_InsecureApp.Controllers
         /// <summary>
         /// VULNÉRABLE: Changement de mot de passe sans authentification
         /// </summary>
-        [HttpPost("change-password-insecure")]
-        public async Task<IActionResult> ChangePasswordInsecure([FromBody] ChangePasswordRequest request)
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
             // VULNÉRABLE: Pas de vérification d'authentification
             // VULNÉRABLE: userId passé dans la requête
